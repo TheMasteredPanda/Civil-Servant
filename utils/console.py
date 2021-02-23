@@ -1,4 +1,3 @@
-import nest_asyncio
 import asyncio
 from colored import fg
 

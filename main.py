@@ -32,9 +32,8 @@ async def command_listener():
 
 async def shutdown_bot():
     console.log("Shutting bot down") 
+    await bot.logout()
     await bot.close()
-    sys.exit()
-    
 
 console.register_command(Command('shutdown', shutdown_bot))
 console.log('Starting discord bot...')
