@@ -1,3 +1,4 @@
+import sys
 import asyncio
 from colored import fg
 
@@ -16,7 +17,23 @@ class ColourfulConsole():
     def error(self, message):
         print(self.prefix + fg('255') + ":" + fg('204') + message)
 
-    
+    def initate_command_handler(self):
+        print("Initating command handler.")
+        self.console_command_handler_task = asyncio.create_task(self.command_listener()) 
+        print("Initated command handler.")
+        print(self.console_command_handler_task)
+
+    async def command_listener(self):
+        print("Command listener enabled.")
+
+        while True:
+            console_input = sys.stdin.readline()
+            await self.process_console_input(console_input)
+
+    def shutdown_command_handler(self):
+        self.console_command_handler_task.cancel()
+
+
     def register_command(self, command):
         for cmd in self.console_commands:
             if cmd.name == command.name:
