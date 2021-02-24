@@ -2,11 +2,21 @@ import sys
 import asyncio
 from colored import fg
 
+def executed(*args, **kwargs):
+    def decorator(func):
+        def wrapper():
+            print("Executing " + func.__name__ + ".")
+            func(*args, **kwargs)
+            print("Executed " + func.__name__ + ".")
+        return wrapper
+    return decorator
+
 #Need to add the current date to each log message. As well as set up a logging system to store all the log messages.
 class ColourfulConsole():
     def __init__(self):
         self.console_commands = []
         self.prefix = fg('247') + "[" + fg('226') + "Civil Servant" + fg('247') + "]"
+        self.pause = 0
 
     def log(self, message):
         print(self.prefix + fg('255') + ": " + fg('250') + message)
@@ -23,11 +33,22 @@ class ColourfulConsole():
         print("Initated command handler.")
         print(self.console_command_handler_task)
 
+    @executed
+    def pause_command_listener(self):
+        print("Pausing command listener")
+        self.pause = 1
+
     async def command_listener(self):
         print("Command listener enabled.")
 
         while True:
+            if (self.pause == 1):
+                print("Paused command listener")
+                break
+
             console_input = sys.stdin.readline()
+            if (console_input == ' ' or console_input == '' or len(console_input.split('\n')) == 0):
+                    continue
             await self.process_console_input(console_input)
 
     def shutdown_command_handler(self):
@@ -52,6 +73,7 @@ class ColourfulConsole():
                 split_input.remove(split_input[0])
                 await cmd.on_command(command, split_input)
         
+
 
 
 class Command:
