@@ -9,7 +9,6 @@ import dotenv
 import discord
 from discord.ext import commands, tasks
 from utils.console import ColourfulConsole, Command
-from commands.test_cmd import TestCommand
 
 '''
 Python Discord Bot.
@@ -24,8 +23,9 @@ loop_bool = True
 @bot.event
 async def on_ready():
     console.log('Starting command listener.')
+    console.command_listener.start()
+
     console.log('Online')
-    #console.command_listener.start()
 
 async def shutdown_bot():
     console.log('Shutting bot down')
@@ -40,5 +40,4 @@ console.register_command('shutdown', shutdown_bot)
 console.log('Starting discord bot...')
 dotenv.load_dotenv()
 console.log('Loaded environment variables.')
-bot.add_cog(TestCommand(bot))
 bot.run(os.getenv('DISCORD_TOKEN'))
