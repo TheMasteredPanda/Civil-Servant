@@ -25,7 +25,7 @@ loop_bool = True
 async def on_ready():
     console.log('Starting command listener.')
     console.log('Online')
-    #console.command_listener.start()
+    console.command_listener.start()
 
 async def shutdown_bot():
     console.log('Shutting bot down')

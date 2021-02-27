@@ -1,3 +1,4 @@
+from datetime import datetime
 from discord.ext import tasks
 from threading import Thread
 import sys
@@ -22,6 +23,7 @@ class ColourfulConsole():
     @tasks.loop(seconds=1.0)
     async def command_listener(self):
         console_input = list(filter(lambda x: (x != '' and x != ' '), sys.stdin.readline().split('\n')))
+        time_before = datetime.now()
 
         if (len(console_input) > 0):
             for command in self.console_commands:
@@ -29,6 +31,7 @@ class ColourfulConsole():
                     cmd_string = console_input[0]
                     console_input.pop(0)
                     await command.on_command(cmd_string, console_input)
+                    self.log('It took ' + str(datetime.now() - time_before) + ' milliseconds to execute command ' + command.get_name())
 
     def register_command(self, name, func):
         for command in self.console_commands:
