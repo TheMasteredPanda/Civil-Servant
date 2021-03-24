@@ -1,4 +1,5 @@
 import mariadb
+from mariadb import cursor, connection, ConnectionPool
 
 #A manager for executing sql queries. 
 class Database:
@@ -17,130 +18,129 @@ class Database:
         except mariadb.Error as ex:
             raise ex
 
+    class Statement():
+        def __init__(self, pool, first_values):
+            self.table_name = None
+            self.connection = pool.get_connection()
+            self.cursor = self.connection.cursor()
+            self.query = None
+            self.values = None
+            self.first_values = first_values
+        
+        def _build_statement(self):
+            pass
+
+        def get_cursor(self):
+            return self.cursor
+
+        def get_table_name(self):
+            return self.table_name
+        
+        def execute(self):
+            self._build_statement()
+
+            try:
+                self.cursor.execute(self.query, self.values)
+                self.connection.commit()
+            except connection.Error as err:
+                pass
+
+
+        def execute_many(self):
+            self._build_statement()
+
+            try:
+                self.cursor.executemany(self.query, self.values)
+                self.connection.commit()
+            except connection.Error as err:
+                pass
+
+
+        def close(self):
+            try:
+                self.cursor.close()
+                self.connection.close()
+            except connection.Error as err:
+                pass
+
+    class FetchStatement(Statement):
+        def __init__(self, pool):
+            super().__init__(pool)
+            self.conditionals = None
+
+        def from(self, table_name: str):
+            super().table_name = table_name
+
+        def where(self, **kwargs):
+            super().values = kwargs
+
+        def _build_statement(self):
+            super().query = "select {} from {} where {}".format(",".join(super().first_values), super().table_name, map(lambda kv: '{}={}'.format(kv[0], kv[1]), self.conditionals))
+
+        def fetch(self, size: int):
+            try:
+                if size == 1: return super().cursor.fetchone()
+                if size == -1: return super().cursor.fetchall()
+                if size > 1: return super().cursor.fetchmany(size)
+            except connection.Error as err:
+                pass
+
+    class InsertStatement(Statement):
+        def __init__(self, pool, first_values):
+            super().__init__(pool, first_values)
+            self.into_columns = ()
+        
+        def into(self, table_name: str):
+            super().table_name = table_name
+
+        def columns(self, columns: tuple):
+            self.into_columns = columns
+
+        def _build_statement(self):
+            super().query = "insert into {}{} values ?".format(super().table_name, '' if len(self.into_columns) == 0 else "({})".format(self.into_columns))
+            super().values = super().first_values
+
+    class UpdateStatement(Statement):
+        def __init__(self, pool, first_values):
+            super().__init__(pool, first_values)
+            super().table_name = first_values
+            self.set_values = {}
+
+        def set(self, **kwargs):
+            self.set_values = kwargs
+
+        def where(self, **kwargs):
+            super().values = kwargs
+
+        def _build_statement(self):
+            super().query = "update {} set {} where ?".format(super().table_name, ",".join(self.set_values))
+
+    class DeleteStatement(Statement):
+        def __init__(self, pool, first_values):
+            super().__init__(pool, first_values)
+            self.conditionals = {}
+
+        def from(self, table_name):
+            super().table_name = table_name
+
+        def where(self, **kwargs):
+            self.conditionals = kwargs
+
+        def _build_statement(self):
+            super().query = "delete from {} where {}".format(super().table_name, " and ".join(map(lambda kv: "{}={}".format(kv[0], kv[1]), self.conditionals)))
+            
     #Closes the connection pool.
     def close(self):
         self.pool.close()
 
-    '''
-    A decorator used to execute queries and inject the result into the function. The decorator
-    takes in the query that will be executed and the arguments passed to the function when
-    the function is being called as the values to be placed into the query for all CRUD
-    statements.
+    def fetch(self, **kwargs):
+        return self.FetchStatement(self.pool, kwargs)
 
-    @fetch("SELECT * FROM table_name WHERE id = ?")
-    def test_function(result):
-        ...
+    def insert(self, values: tuple or list(tuple)):
+        return self.InsertStatement(self.pool, values)
 
-    test_function(1233322)
-    
-    Resulting query: SELECT * FROM table_name WHERE id = 1233322
+    def update(self, table_name: str):
+        return self.UpdateStatement(self, table_name)
 
-    The result will then be injected into the function as 'result'
-    '''
-    def fetch(self, query: str):
-        def decorator(*args, **kwargs):
-            def wrapper(func):
-                if query == '':
-                    raise Exception('Query is empty')
-            
-                try:
-                    pconn = self.pool.get_connection()
-                    pcursor = pconn.cursor()
-                    result = None
-
-                    if len(args) == 0:
-                        result = pcursor.execute(query)
-                        
-                    elif len(args) > 0:
-                        result = pcursor.execute(query, args)
-
-                    func(result) 
-                    pconn.close()
-                except mariadb.PoolError as ex:
-                    raise ex
-            return wrapper
-        return decorator
-
-    '''
-    A function used to execute all CRUD operations. 
-    The values parameter can either be a list of tuples or a tuple singularly
-
-    If a result is not returned then a boolean is returned. True the statement executed 
-    succesfully, otherwise FAlse
-    '''
-    def execute(self, *args, **kwargs): 
-        try:
-            pconn = self.pool.get_connection()
-            pcursor = pconn.cursor()
-            result = None
-
-            if len(args) == 0 and len(kwargs) == 0:
-                raise Exception("args and kwargs cannot be empty.")
-            
-            query: str = None
-
-            if len(args) > 0:
-                if isinstance(args[0], str) is False:
-                    raise Exception("Query must be a string.")
-                query = args[0].lower()
-            else:
-                if 'query' not in kwargs:
-                    raise Exception("Keyword 'query' not found in kwargs.")
-                if isinstance(args[0], str) is False:
-                    raise Exception("Query must be a string.")
-
-                query = kwargs['query'].lower()
-
-            if query is None:
-                raise Exception("query was null past the asssignment conditional statement. Should be impossible.")
-        
-            if 'values' in kwargs or len(args) >= 2:
-                values = None
-
-                if len(args) >= 2:
-                    values = args[1]
-                else:
-                    values = kwargs['values']
-
-                if isinstance(values, list) is False and isinstance(values, tuple) is False:
-                    raise Exception("Values must be in either tuple or list[tuple]")
-
-                if query.startswith('insert'):
-                    if isinstance(values, list):
-                        if len(values) == 0:
-                            raise Exception('List is empty.')
-
-                        tuple_irregularities = len(list(filter(lambda item: query.count('?') != len(item), values)))
-
-                        if tuple_irregularities > 0:
-                            raise Exception('Tuple length in a few entires is not equal to the query placeholder length. Query Length: {} Values: {}'.format(query.count('?'), tuple_irregularities))
-
-                        result = pcursor.executemany(query, values)
-                        if result is None: result = True
-                    else:
-                        if len(values) == 0:
-                            raise Exception('Tuple is empty.')
-
-                        if query.count('?') != len(values):
-                            raise Exception('Tuple length is not equal to query placeholder length. Query Length: {} - Value Length: {} - Values: {}'.format(query.count('?'), len(values), values))
-                        result = pcursor.execute(query, values)
-                        if result is None: result = True
-                        pcursor.close()
-                        pconn.commit()
-                else:
-                    result = pcursor.execute(query, values)
-                    if result is None: result = True
-                    pcursor.close()
-                    pconn.commit()
-            else:
-               pcursor.execute(query)
-               result = True
-               pcursor.close()
-               pconn.commit()
-
-            pconn.close()
-            return result
-        except mariadb.PoolError as ex:
-            result = False
-            raise ex
-            return result
+    def delete(self):
+        return self.DeleteStatement(self.pool, None)

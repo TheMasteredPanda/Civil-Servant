@@ -97,7 +97,11 @@ class Command(commands.Cog):
             self.database.execute("INSERT INTO punishments (user_id, guild_id, type, reason, duration, active, started_at, updated_at) VALUES (?,?,?,?,?,?,?,?)", (accused.id, ctx.guild.id, punishment_type.name, reason, duration, active, datetime.now().date().isoformat(), datetime.now().date().isoformat()))
 
     def is_muted(self, member: Member):
-        result_set = self.database.execute("select count(*) from punishments where user_id=? and active=true", (member.id,))
+        self.console.log(str(member.id))
+        result_set = self.database.execute("select * from punishments where user_id=? and active=1", (member.id,))
+        if isinstance(result_set, bool):
+            raise Exception('Statement resulted a boolean rather than a result set')
+
         return False if result_set is None else result_set.rowcount > 0
 
     def convert_to_time(self, arg: str):

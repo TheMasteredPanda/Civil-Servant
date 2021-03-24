@@ -7,7 +7,7 @@ class Settings():
         self.path = settings_path
         if os.path.exists(settings_path) is False:
             with open(settings_path, 'w') as settings_file:
-                json_raw = json.dumps({"punishments": {"muterole": None}})
+                json_raw = json.dumps({"punishments": {"muterole": None, "tempbanrole": None}})
                 settings_file.write(json_raw)
 
         with open(settings_path, 'r') as settings_file:
